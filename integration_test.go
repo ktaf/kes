@@ -430,7 +430,7 @@ func TestReadWritePolicy(t *testing.T) {
 		if err := client.SetPolicy(context.Background(), name, policy); err != nil {
 			t.Fatalf("Test %d: Failed to create policy '%s': %v", i, name, err)
 		}
-		if _, err = client.GetPolicy(context.Background(), name); err != nil {
+		if _, _, err = client.GetPolicy(context.Background(), name); err != nil {
 			client.DeletePolicy(context.Background(), name) // cleanup
 			t.Fatalf("Test %d: Failed to read policy '%s': %v", i, name, err)
 		}

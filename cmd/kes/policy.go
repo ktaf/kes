@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
+	tui "github.com/charmbracelet/lipgloss"
 	"github.com/minio/kes"
 	"github.com/minio/kes/internal/cli"
 	flag "github.com/spf13/pflag"
@@ -303,16 +305,64 @@ func showPolicyCmd(args []string) {
 	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer cancelCtx()
 
-	policy, err := client.GetPolicy(ctx, name)
+	policy, info, err := client.GetPolicy(ctx, name)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			os.Exit(1)
 		}
-		cli.Fatalf("failed to show policy %q: %v", name, err)
+		cli.Fatalf("failed to show policy '%s': %v", name, err)
 	}
-	encoder := json.NewEncoder(os.Stdout)
-	if isTerm(os.Stdout) {
-		encoder.SetIndent("", "  ")
+	if !isTerm(os.Stdout) {
+		type Response struct {
+			Allow     []string     `json:"allow,omitempty"`
+			Deny      []string     `json:"deny,omitempty"`
+			CreatedAt time.Time    `json:"created_at,omitempty"`
+			CreatedBy kes.Identity `json:"created_by,omitempty"`
+		}
+		err = json.NewEncoder(os.Stdout).Encode(Response{
+			Allow:     policy.Allow,
+			Deny:      policy.Deny,
+			CreatedAt: info.CreatedAt,
+			CreatedBy: info.CreatedBy,
+		})
+		if err != nil {
+			cli.Fatalf("failed to show policy '%s': %v", name, err)
+		}
+	} else {
+		const (
+			Red   tui.Color = "#d70000"
+			Green tui.Color = "#00a700"
+			Cyan  tui.Color = "#00afaf"
+		)
+		if len(policy.Allow) > 0 {
+			header := tui.NewStyle().Bold(true).Foreground(Green)
+			fmt.Println(header.Render("Allow:"))
+			for _, rule := range policy.Allow {
+				fmt.Println("  · " + rule)
+			}
+		}
+		if len(policy.Deny) > 0 {
+			if len(policy.Allow) > 0 {
+				fmt.Println()
+			}
+			header := tui.NewStyle().Bold(true).Foreground(Red)
+			fmt.Println(header.Render("Deny:"))
+			for _, rule := range policy.Deny {
+				fmt.Println("  · " + rule)
+			}
+		}
+
+		fmt.Println()
+		header := tui.NewStyle().Bold(true).Foreground(Cyan)
+		if !info.CreatedAt.IsZero() {
+			year, month, day := info.CreatedAt.Local().Date()
+			hour, min, sec := info.CreatedAt.Local().Clock()
+			fmt.Printf("\n%s %d-%d-%d %0d:%0d:%0d\n", header.Render("Created at:"), year, month, day, hour, min, sec)
+		}
+		if !info.CreatedBy.IsUnknown() {
+			fmt.Println(header.Render("Created by:"), info.CreatedBy)
+		} else {
+			fmt.Println(header.Render("Created by:"), "<unknown>")
+		}
 	}
-	encoder.Encode(policy)
 }

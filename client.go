@@ -351,7 +351,7 @@ func (c *Client) SetPolicy(ctx context.Context, name string, policy *Policy) err
 // GetPolicy returns the policy with the given name.
 // It returns ErrPolicyNotFound if no such policy
 // exists.
-func (c *Client) GetPolicy(ctx context.Context, name string) (*Policy, error) {
+func (c *Client) GetPolicy(ctx context.Context, name string) (*Policy, *PolicyInfo, error) {
 	enclave := Enclave{
 		endpoints: c.Endpoints,
 		client:    retry(c.HTTPClient),
